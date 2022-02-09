@@ -140,14 +140,16 @@
                             class="fas fa-plus mr-1"></i>Add</button>
                     <button name="action" value="save" type="submit" class="btn btn-large btn-success"><i
                             class="fas fa-save mr-1"></i>Save</button>
-                    <button type="button" onclick="run()" class="btn btn-large btn-warning"><i
-                            class="fas fa-sync mr-1"></i>Run</button>
+                    <button type="button" onclick="merge()" class="btn btn-large btn-warning"><i
+                            class="fas fa-sync mr-1"></i>Merge</button>
                 </div>
             </div>
         </form>
-        <div id="conflict-files"></div>
-        <div id="editor" style="height: 500px; overflow: hidden;"></div>
-        <div class="col-12 col-md-8 offset-md-2">
+        <div id="conflict-block" class="my-5 col-12 invisible">
+            <h3>List file conflict</h3>
+            <div id="conflict-files"></div>
+        </div>
+        <div class="col-12">
             <pre id="output"></pre>
         </div>
     </div>
@@ -157,7 +159,7 @@
     <script src="https://code.jquery.com/ui/1.13.0/jquery-ui.min.js"
         integrity="sha256-hlKLmzaRlE8SCJC1Kw8zoUbU8BxA+8kR3gseuKfMjxA=" crossorigin="anonymous"></script>
     <script>
-        var dataJSON = < ? = $dataJSON ? > ;
+        var dataJSON = <?= $dataJSON ?> ;
         var issues = dataJSON.issues || [];
         require.config({
             paths: {
@@ -177,22 +179,6 @@
         };
         require(['vs/editor/editor.main'], function () {
             window.editor = monaco.editor;
-            window.editor.deltaDecorations(
-                this.editor.getModel().getAllDecorations(),
-                [{
-                    range: new monaco.Range(
-                        292,
-                        0,
-                        295,
-                        0
-                    ),
-                    options: {
-                        isWholeLine: true,
-                        className: 'rightLineDecoration',
-                        marginClassName: 'rightLineDecoration'
-                    }
-                }]
-            );
         });
 
         for (var i = 0; i < issues.length; i++) {
@@ -217,16 +203,15 @@
             listForm.append(content);
         }
 
-        function run() {
+        function merge() {
             var button = $(event.target);
             var icon = button.find('i');
             icon.addClass('fa-spin');
-            $('#output').text('Running ...');
+            $('#output').text('Running ... \n');
             // Use server sent event
             var eventSource = new EventSource('?run=1');
             eventSource.onmessage = function (e) {
                 if (e.data === 'START') {
-                    $('#output').html('');
                 } else if (e.data === 'END') {
                     icon.removeClass('fa-spin');
                     eventSource.close();
@@ -239,6 +224,7 @@
         }
 
         function haveConflict(files) {
+            $('#conflict-block').removeClass('invisible');
             var conflictFileListDom = $('#conflict-files');
             conflictFileListDom.html('');
             for (var i = 0; i < files.length; i++) {
@@ -249,6 +235,10 @@
         }
 
         function editFile(fileName) {
+            var editorFileDom = $(event.target).parent();
+            var editorId = btoa(fileName);
+            $('.mo-editor').remove();
+            editorFileDom.after(`<div id="${editorId}" class="mo-editor"></div>`);
             var language = fileName.split('.').pop();
             if (language == 'tpl') {
                 language = 'html';
@@ -260,9 +250,12 @@
                 })
                 .then(function (text) {
                     window.editor.getModels().forEach(model => model.dispose());
-                    var editorDom = document.getElementById('editor');
+                    var editorDom = document.getElementById(editorId);
+                    editorDom.style.height  = '500px';
+                    editorDom.style['margin-top'] = '-1rem';
+                    editorDom.style['margin-bottom'] = '1rem';
                     window.currentFile = fileName;
-                    window.editor.create(document.getElementById('editor'), {
+                    window.editor.create(editorDom, {
                         value: text,
                         language,
                         theme: 'vs-dark',
