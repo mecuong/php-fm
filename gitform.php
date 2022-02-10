@@ -1,14 +1,16 @@
 <?php
     session_start();
     define('ROOT', str_replace('\\', '/', dirname(dirname(__DIR__))));
-    define('GIT_BASE', 'develop-vn');
+    define('GIT_BASE', 'master');
     $is_logged = $_SESSION['isLogin'] ?? false;
 
     // Save data with the json file data.json
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = $_POST['action'] ?? $_GET['action'] ?? '';
+
         if ( $action == 'save') {
-            file_put_contents('./data.json', json_encode($_POST));
+            $saveData = json_decode(file_get_contents('php://input'), true);
+            file_put_contents('./data.json', json_encode($saveData));
         }
 
         if ($action == 'fileSave') {
@@ -39,7 +41,7 @@
 
     // Store data with the json file data.json
     if (file_exists('./data.json')) {
-        $dataJSON = file_get_contents('./data.json');
+        $dataJSON = @file_get_contents('./data.json');
     } else {
         $dataJSON = '[]';
     }
@@ -52,7 +54,7 @@
         exit();
     }
 
-    if (isset($_GET['run']) && $is_logged) {
+    if (isset($_GET['merge']) && $is_logged) {
         // Result run as server sent event
         header('Content-Type: text/event-stream');
         header('Cache-Control: no-cache');
@@ -82,12 +84,33 @@
             return $matches[0] ?? '';
         }, $lineConflicts));
 
+        $conflictFiles = array_filter($conflictFiles, function($file) {
+            return file_exists(ROOT . '/' . $file);
+        });
+
         if (count($conflictFiles) > 0) {
             sendMsg('CONFLICT:' . join(',', $conflictFiles));
         }
 
-        // Second step run ....
+        sendMsg('END');
+        exit;
+    }
 
+    if (isset($_GET['command']) && $is_logged) {
+        // Result run as server sent event
+        header('Content-Type: text/event-stream');
+        header('Cache-Control: no-cache');
+        header('Connection: keep-alive');
+        header('Access-Control-Allow-Origin: *');
+
+        $data = json_decode($dataJSON, true);
+        $commandText = $data['command'] ?? '';
+
+        sendMsg('START');
+
+        array_map(function($line) {
+            execCommand($line);
+        }, explode('\r\n', $commandText));
 
         sendMsg('END');
         exit;
@@ -177,18 +200,20 @@
         </div>
     <?php } else { ?>
     <div class="container">
-        <form class="mt-5" method="POST">
+        <form class="mt-5" method="POST" onsubmit="return saveList()">
             <fieldset id="list-issue">
                 <legend>Issue List</legend>
             </fieldset>
+            <div class="form-group row" >
+                <div class="col-12"> <label>Run shell after merged</label></div>
+                <div class="col-12" id="command" style="height: 200px"></div>
+                <textarea name="command" id="command-input" class="form-control" style="display: none;"></textarea>
+            </div>
             <div class="form-group row">
                 <div class="btn-group col-12" role="group" aria-label="Basic example">
-                    <button type="button" onclick="add()" class="btn btn-primary"><i
-                            class="fas fa-plus mr-1"></i>Add</button>
-                    <button name="action" value="save" type="submit" class="btn btn-large btn-success"><i
-                            class="fas fa-save mr-1"></i>Save</button>
-                    <button type="button" onclick="merge()" class="btn btn-large btn-warning"><i
-                            class="fas fa-sync mr-1"></i>Merge</button>
+                    <button type="button" onclick="add()" class="btn btn-primary"><i class="fas fa-plus mr-1"></i>Add</button>
+                    <button type="button" onclick="merge()" class="btn btn-large btn-warning"><i class="fas fa-sync mr-1"></i>Merge</button>
+                    <button type="button" onclick="runCommand()" class="btn btn-large btn-danger"><i class="fas fa-play mr-1"></i>Run</button>
                 </div>
             </div>
         </form>
@@ -206,7 +231,7 @@
     <script src="https://code.jquery.com/ui/1.13.0/jquery-ui.min.js"
         integrity="sha256-hlKLmzaRlE8SCJC1Kw8zoUbU8BxA+8kR3gseuKfMjxA=" crossorigin="anonymous"></script>
     <script>
-        var dataJSON = <?= $dataJSON ?> ;
+        var dataJSON = <?= $dataJSON ?> ?? {} ;
         var issues = dataJSON.issues || [];
         require.config({
             paths: {
@@ -226,6 +251,11 @@
         };
         require(['vs/editor/editor.main'], function () {
             window.editor = monaco.editor;
+            window.commandEditor = window.editor.create(document.getElementById('command'), {
+                value: dataJSON.command || '',
+                language: 'shell',
+                theme: 'vs-dark',
+            });
         });
 
         for (var i = 0; i < issues.length; i++) {
@@ -250,13 +280,35 @@
             listForm.append(content);
         }
 
-        function merge() {
+        function saveList() {
+            // Post form value
+            var issues = [];
+            $('#list-issue input[name="issues[]"]').each(function () {
+                issues.push($(this).val());
+            });
+
+            fetch('?action=save', {
+                method: 'POST',
+                body: JSON.stringify({
+                    issues: issues,
+                    command:  window.commandEditor.getValue()
+                }),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            return false;
+        }
+
+        async function merge() {
+            await saveList();
             var button = $(event.target);
             var icon = button.find('i');
             icon.addClass('fa-spin');
             $('#output').text('Running ... \n');
             // Use server sent event
-            var eventSource = new EventSource('?run=1');
+            var eventSource = new EventSource('?merge=1');
             eventSource.onmessage = function (e) {
                 if (e.data === 'START') {
                 } else if (e.data === 'END') {
@@ -275,9 +327,7 @@
             var conflictFileListDom = $('#conflict-files');
             conflictFileListDom.html('');
             for (var i = 0; i < files.length; i++) {
-                conflictFileListDom.append(
-                    `<div class="alert alert-danger">${files[i]}<i class="fas fa-pencil pull-right m-2" onclick="editFile('${files[i]}')"></i></div>`
-                    );
+                conflictFileListDom.append( `<div class="alert alert-danger">${files[i]}<i class="fas fa-pencil pull-right m-2" onclick="editFile('${files[i]}')"></i></div>`);
             }
         }
 
@@ -291,12 +341,15 @@
                 language = 'html';
             }
 
+            if (['vue', 'js', 'cjs', 'mjs'].includes(language)) {
+                language = 'javascript';
+            }
+
             fetch(`?file=${fileName}`)
                 .then(function (response) {
                     return response.text();
                 })
                 .then(function (text) {
-                    window.editor.getModels().forEach(model => model.dispose());
                     var editorDom = document.getElementById(editorId);
                     editorDom.style.height  = '500px';
                     editorDom.style['margin-top'] = '-1rem';
@@ -310,6 +363,23 @@
                 });
         }
 
+        function runCommand() {
+            saveList();
+            $('#conflict-files').html('');
+            $('#conflict-block').addClass('invisible');
+            $('#output').text('Running ... \n');
+            // Use server sent event
+            var eventSource = new EventSource('?command=true');
+            eventSource.onmessage = function (e) {
+                if (e.data === 'START') {
+                } else if (e.data === 'END') {
+                    eventSource.close();
+                } else {
+                    $('#output').append(e.data + '<br>');
+                }
+            };
+        }
+
         document.onkeydown = function (e) {
             if (e.ctrlKey && e.keyCode === 83) {
                 // Check empty conflict content
@@ -318,11 +388,9 @@
                 if (!fileContent.includes('<<<<<<<') &&
                     !fileContent.includes('>>>>>>>') &&
                     !fileContent.includes('=======')) {
-                    $('div.alert:contains("' + window.currentFile + '")').removeClass('alert-danger').addClass(
-                        'alert-success');
+                    $('div.alert:contains("' + window.currentFile + '")').removeClass('alert-danger').addClass('alert-success');
                 } else {
-                    $('div.alert:contains("' + window.currentFile + '")').removeClass('alert-success').addClass(
-                        'alert-danger');
+                    $('div.alert:contains("' + window.currentFile + '")').removeClass('alert-success').addClass('alert-danger');
                 }
 
                 fetch('?action=fileSave', {
@@ -337,6 +405,8 @@
                 });
             }
         };
+
+
     </script>
     <?php } ?>
 </body>
