@@ -1,10 +1,6 @@
 <?php
 
-// Check environment, if environment is production, response to 403 page
-if (($_ENV['ENV'] ?? $_ENV['NODE_ENV'] ?? '') == 'production') {
-    header('HTTP/1.0 403 Forbidden');
-    exit('Forbidden');
-}
+define('PASSWORD', '418ca664b9019356422d2eec129ef0de'); // use md5 password
 
 //{"lang":"","fm_root":"","timezone":"","date_format":"Y\/m\/d H:i","auth_pass":"d41d8cd98f00b204e9800998ecf8427e","error_reporting":1}
 /*-------------------------------------------------
@@ -274,7 +270,7 @@ class config {
             'fm_root'=>'',
             'timezone'=>'',
             'date_format'=>'Y/m/d H:i',
-            'auth_pass'=>md5(''),
+            'auth_pass'=> PASSWORD,
             'error_reporting'=>1
         );
     }
