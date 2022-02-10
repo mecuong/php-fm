@@ -60,6 +60,7 @@
         header('Cache-Control: no-cache');
         header('Connection: keep-alive');
         header('Access-Control-Allow-Origin: *');
+        sleep(1); // Sleep for wait save data
 
         $data = json_decode($dataJSON, true);
         $issues = $data['issues'] ?? [];
@@ -68,18 +69,18 @@
         sendMsg('START');
 
         execCommand('cd ' . ROOT . ' && git reset --hard && git fetch && git checkout -f ' . GIT_BASE . ' && git pull');
+        execCommand('git config --global merge.theirs.driver true');
 
         // Merge to develop before
-        $result = execCommand('git merge --no-commit --strategy recursive --strategy-option theirs origin/develop');
+        $result = execCommand('git merge --no-commit --strategy recursive --strategy-option theirs --strategy-option no-renames origin/develop');
         if (strpos(join(' ', $result), 'stopped before committing as requested')) {
             execCommand('git commit -m "Merge to develop"');
         }
 
-
         // First step Merge all branches to this base
         foreach ($issues as $branch) {
             if ($branch) {
-                $result = execCommand("git merge --no-commit --strategy recursive --strategy-option theirs origin/{$branch}");
+                $result = execCommand("git merge --no-commit --strategy recursive --strategy-option theirs --strategy-option no-renames origin/{$branch}");
                 if (strpos(join(' ', $result), 'stopped before committing as requested')) {
                     execCommand("git commit -m \"Merge to {$branch}\"");
                 }
@@ -114,6 +115,7 @@
         header('Cache-Control: no-cache');
         header('Connection: keep-alive');
         header('Access-Control-Allow-Origin: *');
+        sleep(1);   // Sleep for wait save data
 
         $data = json_decode($dataJSON, true);
         $commandText = $data['command'] ?? '';
@@ -284,7 +286,7 @@
                             </div>
                             <input id="text" name="issues[]" type="text" value="${value}" class="form-control">
                             <div class="input-group-append" style="cursor:pointer" onclick="this.parentNode.parentNode.parentNode.parentNode.removeChild(this.parentNode.parentNode.parentNode)">
-                                <div class="input-group-text"><i class="fa fa-minus"></i></div>
+                                <div class="input-group-text"><i class="fa fa-minus"></i><i class="fa fa-plus"></i></div>
                             </div>
                         </div>
                     </div>
