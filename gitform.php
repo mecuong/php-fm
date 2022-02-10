@@ -1,7 +1,7 @@
 <?php
     session_start();
     define('ROOT', str_replace('\\', '/', dirname(dirname(__DIR__))));
-    define('GIT_BASE', 'master');
+    define('GIT_BASE', 'develop-vn');
     $is_logged = $_SESSION['isLogin'] ?? false;
 
     // Save data with the json file data.json
@@ -67,30 +67,42 @@
 
         sendMsg('START');
 
-        execCommand('cd ' . ROOT . ' && git reset --hard && git fetch && git checkout ' . GIT_BASE . ' && git pull');
+        execCommand('cd ' . ROOT . ' && git reset --hard && git fetch && git checkout -f ' . GIT_BASE . ' && git pull');
+
+        // Merge to develop before
+        $result = execCommand('git merge --no-commit --strategy recursive --strategy-option theirs origin/develop');
+        if (strpos(join(' ', $result), 'stopped before committing as requested')) {
+            execCommand('git commit -m "Merge to develop"');
+        }
+
 
         // First step Merge all branches to this base
-        $mergeOutput = execCommand('git merge --no-commit develop ' . join(' ', array_map(function($branch) {
-            return 'origin/' . $branch;
-        }, $issues)));
-
-        $lineConflicts = array_filter($mergeOutput, function($line) {
-            return strpos($line, 'ERROR: content conflict in') !== false
-            || strpos($line, 'CONFLICT') !== false;
-        });
-
-        $conflictFiles = array_values(array_map(function($line) {
-            preg_match('/[^\s]*$/', $line, $matches);
-            return $matches[0] ?? '';
-        }, $lineConflicts));
-
-        $conflictFiles = array_filter($conflictFiles, function($file) {
-            return file_exists(ROOT . '/' . $file);
-        });
-
-        if (count($conflictFiles) > 0) {
-            sendMsg('CONFLICT:' . join(',', $conflictFiles));
+        foreach ($issues as $branch) {
+            if ($branch) {
+                $result = execCommand("git merge --no-commit --strategy recursive --strategy-option theirs origin/{$branch}");
+                if (strpos(join(' ', $result), 'stopped before committing as requested')) {
+                    execCommand("git commit -m \"Merge to {$branch}\"");
+                }
+            }
         }
+
+        // $lineConflicts = array_filter($mergeOutput, function($line) {
+        //     return strpos($line, 'ERROR: content conflict in') !== false
+        //     || strpos($line, 'CONFLICT') !== false;
+        // });
+
+        // $conflictFiles = array_values(array_map(function($line) {
+        //     preg_match('/[^\s]*$/', $line, $matches);
+        //     return $matches[0] ?? '';
+        // }, $lineConflicts));
+
+        // $conflictFiles = array_filter($conflictFiles, function($file) {
+        //     return file_exists(ROOT . '/' . $file);
+        // });
+
+        // if (count($conflictFiles) > 0) {
+        //     sendMsg('CONFLICT:' . join(',', $conflictFiles));
+        // }
 
         sendMsg('END');
         exit;
