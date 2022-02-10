@@ -1,6 +1,8 @@
 <?php
-    define('ROOT', str_replace('\\', '/', dirname(__FILE__)));
-    define('GIT_BASE', 'master');
+    session_start();
+    define('ROOT', str_replace('\\', '/', dirname(dirname(__DIR__))));
+    define('GIT_BASE', 'develop-vn');
+    $is_logged = $_SESSION['isLogin'] ?? false;
 
     // Save data with the json file data.json
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -17,6 +19,21 @@
                 @file_put_contents(ROOT . '/' . $fileName, $saveData['fileContent'] ?? '');
             }
             exit();
+        }
+
+        if ($action == 'login') {
+            $mailList = [
+                'nguyen.cuong@marketenterprise.vn',
+                'vndeployer@marketenterprise.vn'
+            ];
+
+            $_SESSION['username'] = $_POST['username'] ?? '';
+            $_SESSION['password'] = $_POST['password'] ?? '';
+            if (in_array($_SESSION['username'], $mailList) && $_SESSION['password'] == 'oikura@2022') {
+                $is_logged  = $_SESSION['isLogin'] = true;
+            } else {
+                $_SESSION['error'] = 'Login failed';
+            }
         }
     }
 
@@ -35,7 +52,7 @@
         exit();
     }
 
-    if (isset($_GET['run'])) {
+    if (isset($_GET['run']) && $is_logged) {
         // Result run as server sent event
         header('Content-Type: text/event-stream');
         header('Cache-Control: no-cache');
@@ -49,10 +66,9 @@
         sendMsg('START');
 
         execCommand('cd ' . ROOT . ' && git reset --hard && git fetch && git checkout ' . GIT_BASE . ' && git pull');
-        sleep(1);
 
         // First step Merge all branches to this base
-        $mergeOutput = execCommand('git merge --no-commit ' . join(' ', array_map(function($branch) {
+        $mergeOutput = execCommand('git merge --no-commit develop ' . join(' ', array_map(function($branch) {
             return 'origin/' . $branch;
         }, $issues)));
 
@@ -70,15 +86,11 @@
             sendMsg('CONFLICT:' . join(',', $conflictFiles));
         }
 
-
         // Second step run ....
-
-        sleep(1);
 
 
         sendMsg('END');
         exit;
-
     }
 
     function execCommand(string $command)
@@ -129,6 +141,41 @@
 </head>
 
 <body>
+    <?php if (!$is_logged) { ?>
+        <div class="container">
+            <div class="row" style="height: 100vh;">
+                <div class="col-12 col-lg-6 offset-lg-3 my-auto">
+                    <div class="card">
+                        <article class="card-body">
+                        <h4 class="card-title mb-4 mt-1">Sign in</h4>
+                        <hr>
+                            <?php if (isset($_SESSION['error'])) { ?>
+                                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                    <strong>Loggin Faild</strong> Check your email and password
+                                    <button type="button" onclick="this.parentNode.parentNode.removeChild(this.parentNode)" class="close" data-dismiss="alert" aria-label="Close">
+                                        <span aria-hidden="true">&times;</span>
+                                    </button>
+                                </div>
+                            <?php } ?>
+                            <form method="POST">
+                                <div class="form-group">
+                                    <label>Your email</label>
+                                    <input name="username" class="form-control" value="<?= $_SESSION['username'] ?? '' ?>" placeholder="Email" type="email">
+                                </div>
+                                <div class="form-group">
+                                    <label>Your password</label>
+                                    <input name="password" class="form-control" value="<?= $_SESSION['password'] ?? '' ?>" placeholder="******" type="password">
+                                </div>
+                                <div class="form-group">
+                                    <button name="action" value="login" type="submit" class="btn btn-primary btn-block"> Login  </button>
+                                </div>
+                            </form>
+                        </article>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <?php } else { ?>
     <div class="container">
         <form class="mt-5" method="POST">
             <fieldset id="list-issue">
@@ -290,8 +337,8 @@
                 });
             }
         };
-
     </script>
+    <?php } ?>
 </body>
 
 </html>
