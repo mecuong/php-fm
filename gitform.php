@@ -225,7 +225,6 @@
             </div>
             <div class="form-group row">
                 <div class="btn-group col-12" role="group" aria-label="Basic example">
-                    <button type="button" onclick="add()" class="btn btn-primary"><i class="fas fa-plus mr-1"></i>Add</button>
                     <button type="button" onclick="merge()" class="btn btn-large btn-warning"><i class="fas fa-sync mr-1"></i>Merge</button>
                     <button type="button" onclick="runCommand()" class="btn btn-large btn-danger"><i class="fas fa-play mr-1"></i>Run</button>
                 </div>
@@ -276,7 +275,11 @@
             add(issues[i]);
         }
 
-        function add(value = '') {
+        if (!issues.length) {
+            add('');
+        }
+
+        function add(value = '', after = null) {
             var listForm = $('#list-issue');
             var content = `<div class="form-group row">
                     <div class="col-12">
@@ -285,13 +288,18 @@
                                 <div class="input-group-text"><i class="fa">#</i></div>
                             </div>
                             <input id="text" name="issues[]" type="text" value="${value}" class="form-control">
-                            <div class="input-group-append" style="cursor:pointer" onclick="this.parentNode.parentNode.parentNode.parentNode.removeChild(this.parentNode.parentNode.parentNode)">
-                                <div class="input-group-text"><i class="fa fa-minus"></i><i class="fa fa-plus"></i></div>
+                            <div class="btn-group input-group-append" role="group" aria-label="Basic example">
+                                <button type="button" onclick="$(this).parents('.form-group').remove()" class="btn btn-danger"><i class="fas fa-trash"></i></button>
+                                <button type="button" onclick="add('', $(this).parents('.form-group'))" class="btn btn-primary"><i class="fas fa-plus"></i></button>
                             </div>
                         </div>
                     </div>
                 </div>`;
-            listForm.append(content);
+            if (after) {
+                after.after(content);
+            } else {
+                listForm.append(content);
+            }
         }
 
         function saveList() {
@@ -397,26 +405,27 @@
         document.onkeydown = function (e) {
             if (e.ctrlKey && e.keyCode === 83) {
                 // Check empty conflict content
-                var fileContent = window.editor.getModels()[0].getValue();
+                // var fileContent = window.editor.getModels()[0].getValue();
 
-                if (!fileContent.includes('<<<<<<<') &&
-                    !fileContent.includes('>>>>>>>') &&
-                    !fileContent.includes('=======')) {
-                    $('div.alert:contains("' + window.currentFile + '")').removeClass('alert-danger').addClass('alert-success');
-                } else {
-                    $('div.alert:contains("' + window.currentFile + '")').removeClass('alert-success').addClass('alert-danger');
-                }
+                // if (!fileContent.includes('<<<<<<<') &&
+                //     !fileContent.includes('>>>>>>>') &&
+                //     !fileContent.includes('=======')) {
+                //     $('div.alert:contains("' + window.currentFile + '")').removeClass('alert-danger').addClass('alert-success');
+                // } else {
+                //     $('div.alert:contains("' + window.currentFile + '")').removeClass('alert-success').addClass('alert-danger');
+                // }
 
-                fetch('?action=fileSave', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        fileName: window.currentFile,
-                        fileContent: window.editor.getModels()[0].getValue()
-                    }),
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
+                // fetch('?action=fileSave', {
+                //     method: 'POST',
+                //     body: JSON.stringify({
+                //         fileName: window.currentFile,
+                //         fileContent: window.editor.getModels()[0].getValue()
+                //     }),
+                //     headers: {
+                //         'Content-Type': 'application/json'
+                //     }
+                // });
+                saveList();
             }
         };
 
