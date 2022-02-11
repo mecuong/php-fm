@@ -64,47 +64,32 @@
 
         $data = json_decode($dataJSON, true);
         $issues = $data['issues'] ?? [];
+        array_unshift($issues, 'develop');
         $output = '';
 
         sendMsg('START');
 
-        execCommand('cd ' . ROOT . ' && git reset --hard && git fetch && git checkout -f ' . GIT_BASE . ' && git pull');
-        execCommand('git config --global merge.theirs.driver true');
-
-        // Merge to develop before
-        $result = execCommand('git merge --no-commit --strategy recursive --strategy-option theirs --strategy-option no-renames origin/develop');
-        if (strpos(join(' ', $result), 'stopped before committing as requested')) {
-            execCommand('git commit -m "Merge to develop"');
+        if (!isset($_SESSION['need_resolve']) || !$_SESSION['need_resolve']) {
+            execCommandWithRoot('git reset --hard && git fetch && git checkout -f ' . GIT_BASE . ' && git pull');
+            execCommandWithRoot('git config --global merge.theirs.driver true');
+        } else {
+            exec('cd ' . ROOT . ' && git add .');
+            execCommandWithRoot('git commit -m "Merge to '. $_SESSION['need_resolve'] .'"');
+            array_splice($issues, 0, array_search($_SESSION['need_resolve'], $issues) + 1);
+            unset($_SESSION['need_resolve']);
         }
 
         // First step Merge all branches to this base
         foreach ($issues as $branch) {
             if ($branch) {
-                $result = execCommand("git merge --no-commit --strategy recursive --strategy-option theirs --strategy-option no-renames origin/{$branch}");
+                $result = execCommandWithRoot("git merge --no-commit origin/{$branch}");
                 if (strpos(join(' ', $result), 'stopped before committing as requested')) {
-                    execCommand("git commit -m \"Merge to {$branch}\"");
+                    execCommandWithRoot("git commit -m \"Merge to {$branch}\"");
                 }
+
+                checkConflict($result, $branch);
             }
         }
-
-        // $lineConflicts = array_filter($mergeOutput, function($line) {
-        //     return strpos($line, 'ERROR: content conflict in') !== false
-        //     || strpos($line, 'CONFLICT') !== false;
-        // });
-
-        // $conflictFiles = array_values(array_map(function($line) {
-        //     preg_match('/[^\s]*$/', $line, $matches);
-        //     return $matches[0] ?? '';
-        // }, $lineConflicts));
-
-        // $conflictFiles = array_filter($conflictFiles, function($file) {
-        //     return file_exists(ROOT . '/' . $file);
-        // });
-
-        // if (count($conflictFiles) > 0) {
-        //     sendMsg('CONFLICT:' . join(',', $conflictFiles));
-        // }
-
         sendMsg('END');
         exit;
     }
@@ -128,6 +113,34 @@
 
         sendMsg('END');
         exit;
+    }
+
+    function checkConflict($result, $branch = '')
+    {
+        $lineConflicts = array_filter($result, function($line) {
+            return strpos($line, 'ERROR: content conflict in') !== false
+            || strpos($line, 'CONFLICT') !== false;
+        });
+
+        $conflictFiles = array_values(array_map(function($line) {
+            preg_match('/[^\s]*$/', $line, $matches);
+            return $matches[0] ?? '';
+        }, $lineConflicts));
+
+        $conflictFiles = array_filter($conflictFiles, function($file) {
+            return file_exists(ROOT . '/' . $file);
+        });
+
+        if (count($conflictFiles) > 0) {
+            sendMsg('CONFLICT:' . join(',', $conflictFiles));
+            sendMsg('Resolve conflict please ...');
+            $_SESSION['need_resolve'] = $branch;
+        }
+    }
+
+    function execCommandWithRoot(string $command)
+    {
+        return execCommand('cd ' . ROOT . ' && ' . $command);
     }
 
     function execCommand(string $command)
@@ -323,8 +336,8 @@
             return false;
         }
 
-        async function merge() {
-            await saveList();
+        function merge() {
+            saveList();
             var button = $(event.target);
             var icon = button.find('i');
             icon.addClass('fa-spin');
@@ -405,31 +418,35 @@
         document.onkeydown = function (e) {
             if (e.ctrlKey && e.keyCode === 83) {
                 // Check empty conflict content
-                // var fileContent = window.editor.getModels()[0].getValue();
+                var fileContent = window.editor.getModels()[0].getValue();
 
-                // if (!fileContent.includes('<<<<<<<') &&
-                //     !fileContent.includes('>>>>>>>') &&
-                //     !fileContent.includes('=======')) {
-                //     $('div.alert:contains("' + window.currentFile + '")').removeClass('alert-danger').addClass('alert-success');
-                // } else {
-                //     $('div.alert:contains("' + window.currentFile + '")').removeClass('alert-success').addClass('alert-danger');
-                // }
+                if (!fileContent.includes('<<<<<<<') &&
+                    !fileContent.includes('>>>>>>>') &&
+                    !fileContent.includes('=======')) {
+                    $('div.alert:contains("' + window.currentFile + '")').removeClass('alert-danger').addClass('alert-success');
+                } else {
+                    $('div.alert:contains("' + window.currentFile + '")').removeClass('alert-success').addClass('alert-danger');
+                }
 
-                // fetch('?action=fileSave', {
-                //     method: 'POST',
-                //     body: JSON.stringify({
-                //         fileName: window.currentFile,
-                //         fileContent: window.editor.getModels()[0].getValue()
-                //     }),
-                //     headers: {
-                //         'Content-Type': 'application/json'
-                //     }
-                // });
+                fetch('?action=fileSave', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        fileName: window.currentFile,
+                        fileContent: window.editor.getModels()[0].getValue()
+                    }),
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(() => {
+                    // Check all conflict resolve
+                    if ($('#conflict-files').find('div.alert-danger').length === 0) {
+                        merge();
+                    }
+                })
                 saveList();
             }
         };
-
-
     </script>
     <?php } ?>
 </body>
