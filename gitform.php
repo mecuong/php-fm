@@ -83,6 +83,7 @@
         foreach ($issues as $branch) {
             if ($branch) {
                 $result = execCommandWithRoot("git merge --no-commit origin/{$branch}");
+                
                 if (strpos(join(' ', $result), 'stopped before committing as requested')) {
                     execCommandWithRoot("git commit -m \"Merge to {$branch}\"");
                 }
