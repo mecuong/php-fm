@@ -1,4 +1,4 @@
-name: PHP Composer
+name: VN Develop CakePHP Linter
 
 on:
   push:
