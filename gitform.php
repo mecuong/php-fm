@@ -64,7 +64,7 @@
 
         $data = json_decode($dataJSON, true);
         $issues = $data['issues'] ?? [];
-        array_unshift($issues, 'develop');
+        array_unshift($issues, 'develop-vn-config', 'develop');
         $output = '';
 
         sendMsg('START');
@@ -135,6 +135,8 @@
             sendMsg('CONFLICT:' . join(',', $conflictFiles));
             sendMsg('Resolve conflict please ...');
             $_SESSION['need_resolve'] = $branch;
+            sendMsg('END');
+            exit;
         }
     }
 
