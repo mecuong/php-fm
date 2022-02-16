@@ -23,15 +23,15 @@ jobs:
         php -r "if (hash_file('sha384', 'composer-setup.php') === '906a84df04cea2aa72f40b5f787e49f22d4c2f19492ac310e8cba5b96ac8b64115ac402c8cd292b8a03482574915d1a8') { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); } echo PHP_EOL;"
         php composer-setup.php --1 
         php -r "unlink('composer-setup.php');"
-        php composer.phar --version
-        
-    - name: Install cakephp codesniffer package
-      run: | 
         php composer.phar require cakephp/cakephp-codesniffer
-
-    - name: Get diff file of pull request 
-      run: |
-      curl --output diff.txt --request GET 'https://api.github.com/repos/marketenterprise/oikura/pulls/2114?state=all' --header 'Accept: application/vnd.github.v3.diff' --header 'Authorization: token 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' --header 'User-Agent: GitAction' 
+        curl -output diff.txt --request GET 'https://api.github.com/repos/marketenterprise/oikura/pulls/2114?state=all' \
+        --header 'Accept: application/vnd.github.v3.diff' --header 'Authorization: token ${{ secrets.GITHUB_TOKEN }}' \
+        --header 'User-Agent: GitAction' 
+        export diff_files=($(cat ./diff.txt | grep -Eo 'diff.\-\-git.a\/([a-zA-Z\_\-\/\.]+\.php)' | grep -Eo 'oikura_api.*$'))
+    
+    - name: Execute sniffer for diff file 
+        echo $diff_files
+        
        
      
         
