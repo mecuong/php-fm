@@ -21,8 +21,8 @@ jobs:
         php composer-setup.php --1 
         php -r "unlink('composer-setup.php');"
         php composer.phar require cakephp/cakephp-codesniffer
-        curl -output ./diff.txt --request GET 'https://api.github.com/repos/marketenterprise/oikura/pulls/2114?state=all' --header 'Accept: application/vnd.github.v3.diff' --header 'Authorization: token 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' --header 'User-Agent: GitAction' > /dev/null 2>&1
-        export diff_files=($(cat ./diff.txt | grep -Eo 'diff.\-\-git.a\/([a-zA-Z\_\-\/\.]+\.php)' | grep -Eo 'oikura_api.*$'))
+        curl -output /diff.txt --request GET 'https://api.github.com/repos/marketenterprise/oikura/pulls/2114?state=all' --header 'Accept: application/vnd.github.v3.diff' --header 'Authorization: token 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' --header 'User-Agent: GitAction' > /dev/null 2>&1
+        export diff_files=($(cat /diff.txt | grep -Eo 'diff.\-\-git.a\/([a-zA-Z\_\-\/\.]+\.php)' | grep -Eo 'oikura_api.*$'))
         for diff_file in "${diff_files[@]}"; do echo $diff_file; done
 
     - name: run test
