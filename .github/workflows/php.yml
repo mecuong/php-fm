@@ -27,7 +27,20 @@ jobs:
         
     - name: Install cakephp codesniffer package
       run: | 
-        php composer.phar require global cakephp/cakephp-codesniffer
+        php composer.phar require cakephp/cakephp-codesniffer
+        echo 'test' > output.txt
+        
+    - name: "Post to PR"
+      uses: EliLillyCo/github-actions-post-to-pr@main
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        post_to_pr_definition: |
+          [
+            {
+              "message_file": "./output.txt",
+              "title": "My Test Execution"
+            }
+          ]
       
     
        
