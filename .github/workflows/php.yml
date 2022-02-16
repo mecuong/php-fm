@@ -28,6 +28,7 @@ jobs:
         export diff_files=($(cat ./diff.txt | grep -Eo 'diff.\-\-git.a\/([a-zA-Z\_\-\/\.]+\.php)' | grep -Eo 'oikura_api.*$'))
     
     - name: Execute sniffer for diff file 
+      run: |
         echo $diff_files
         
        
