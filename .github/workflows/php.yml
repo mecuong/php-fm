@@ -24,7 +24,7 @@ jobs:
         php composer-setup.php --1 
         php -r "unlink('composer-setup.php');"
         php composer.phar require cakephp/cakephp-codesniffer
-        curl -output ./diff.txt --request GET 'https://api.github.com/repos/marketenterprise/oikura/pulls/2114?state=all' --header 'Accept: application/vnd.github.v3.diff' --header 'Authorization: token ${{ secrets.GITHUB_TOKEN }}' --header 'User-Agent: GitAction' 
+        curl -output ./diff.txt --request GET 'https://api.github.com/repos/marketenterprise/oikura/pulls/2114?state=all' --header 'Accept: application/vnd.github.v3.diff' --header 'Authorization: token ${{ secrets.GHP_TOKEN }}' --header 'User-Agent: GitAction' 
         export diff_files=($(cat ./diff.txt | grep -Eo 'diff.\-\-git.a\/([a-zA-Z\_\-\/\.]+\.php)' | grep -Eo 'oikura_api.*$'))
     
     - name: Execute sniffer for diff file 
