@@ -17,6 +17,13 @@ jobs:
     - name: Test
       run: | 
         php -v
+        
+    - name: Use Github 
+      run: |
+        git --version
+        git config user.name "GitHub Actions Bot"
+        git config user.email "<>"
+        git status
 
        
      
