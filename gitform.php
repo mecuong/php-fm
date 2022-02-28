@@ -71,7 +71,20 @@
         sendMsg('START');
 
         if (!isset($_SESSION['need_resolve']) || !$_SESSION['need_resolve']) {
-            execCommandWithRoot('git reset --hard && git fetch && git checkout -f origin/master && git checkout -f origin/' . GIT_BASE . ' && git pull');
+            execCommandWithRoot('git reset --hard && git clean -fd && git fetch && git checkout -f origin/master && git checkout -f origin/' . GIT_BASE . ' && git pull origin ' . GIT_BASE);
+            $gitStatus = execCommandWithRoot('git status');
+            $needCommit = false;
+            array_map(function($line) use(&$needCommit) {
+                if (strpos($line, 'Changes not staged for commit') !== false) {
+                    $needCommit = true;
+                }
+            }, $gitStatus);
+
+            if ($needCommit) {
+                execCommandWithRoot('git add . && git commit -m "Merge from ' . GIT_BASE . '"');
+                sendMsg('COMMITED on ' . GIT_BASE);
+            }
+
         } else {
             exec('cd ' . ROOT . ' && git add .');
             execCommandWithRoot('git commit -m "Merge to '. $_SESSION['need_resolve'] .'"');
