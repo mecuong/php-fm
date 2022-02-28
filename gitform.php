@@ -1,7 +1,8 @@
 <?php
     session_start();
     define('ROOT', str_replace('\\', '/', dirname(dirname(__DIR__))));
-    define('GIT_BASE', 'develop-vn');
+    define('GIT_BASE', 'develop');
+    define('CONFIG_BRANCH', 'develop-vn-config');
     $is_logged = $_SESSION['isLogin'] ?? false;
 
     // Save data with the json file data.json
@@ -64,14 +65,13 @@
 
         $data = json_decode($dataJSON, true);
         $issues = $data['issues'] ?? [];
-        array_unshift($issues, 'develop-vn-config', 'develop');
+        array_unshift($issues, CONFIG_BRANCH);
         $output = '';
 
         sendMsg('START');
 
         if (!isset($_SESSION['need_resolve']) || !$_SESSION['need_resolve']) {
-            execCommandWithRoot('git reset --hard && git fetch && git checkout -f ' . GIT_BASE . ' && git pull');
-            execCommandWithRoot('git config --global merge.theirs.driver true');
+            execCommandWithRoot('git reset --hard && git fetch && git checkout -f origin/master && git checkout -f origin/' . GIT_BASE . ' && git pull');
         } else {
             exec('cd ' . ROOT . ' && git add .');
             execCommandWithRoot('git commit -m "Merge to '. $_SESSION['need_resolve'] .'"');
@@ -133,10 +133,14 @@
 
         if (count($conflictFiles) > 0) {
             sendMsg('CONFLICT:' . join(',', $conflictFiles));
+            sendMsg('NEED RESOLVE BRANCH:' .  $branch);
             sendMsg('Resolve conflict please ...');
-            $_SESSION['need_resolve'] = $branch;
-            sendMsg('END');
-            exit;
+            /**
+             * Comment some line below because not need use merge conflict online by tool
+             */
+            // $_SESSION['need_resolve'] = $branch;
+            // sendMsg('END');
+            // exit;
         }
     }
 
@@ -186,9 +190,6 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
         integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg=="
-        crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css"
-        integrity="sha512-nMNlpuaDPrqlEls3IX/Q56H36qvBASwb3ipuo3MxeWbsQB1881ox0cRv7UPTgBlriqoynt35KjEwgGUeUXIPnw=="
         crossorigin="anonymous" referrerpolicy="no-referrer" />
 </head>
 
@@ -261,6 +262,7 @@
     <script>
         var dataJSON = <?= $dataJSON ?> ?? {} ;
         var issues = dataJSON.issues || [];
+        var confirmList = dataJSON.confirmList ?? [];
         require.config({
             paths: {
                 'vs': 'https://unpkg.com/monaco-editor@latest/min/vs'
@@ -287,14 +289,18 @@
         });
 
         for (var i = 0; i < issues.length; i++) {
-            add(issues[i]);
+            if (confirmList.includes(issues[i])) {
+                add(issues[i], null, true);
+            } else {
+                add(issues[i]);
+            }
         }
 
         if (!issues.length) {
             add('');
         }
 
-        function add(value = '', after = null) {
+        function add(value = '', after = null, confirmed = false) {
             var listForm = $('#list-issue');
             var content = `<div class="form-group row">
                     <div class="col-12">
@@ -304,8 +310,10 @@
                             </div>
                             <input id="text" name="issues[]" type="text" value="${value}" class="form-control">
                             <div class="btn-group input-group-append" role="group" aria-label="Basic example">
-                                <button type="button" onclick="$(this).parents('.form-group').remove()" class="btn btn-danger"><i class="fas fa-trash"></i></button>
+                                <button type="button" onclick="branch_delete($(this).parents('.form-group'));" class="btn btn-danger"><i class="fas fa-trash"></i></button>
                                 <button type="button" onclick="add('', $(this).parents('.form-group'))" class="btn btn-primary"><i class="fas fa-plus"></i></button>
+                                ${ confirmed ? `<button type="button" onclick="branch_confirm($(this).parents('.form-group'))" class="confirm-issue btn btn-success"><i class="fas fa-check"></i></button>` :
+                                `<button type="button" onclick="branch_confirm($(this).parents('.form-group'))" class="confirm-issue btn btn-warning"><i class="fas fa-check"></i></button>` }
                             </div>
                         </div>
                     </div>
@@ -328,7 +336,8 @@
                 method: 'POST',
                 body: JSON.stringify({
                     issues: issues,
-                    command:  window.commandEditor.getValue()
+                    command:  window.commandEditor.getValue(),
+                    confirmList: confirmList
                 }),
                 headers: {
                     'Content-Type': 'application/json'
@@ -352,7 +361,9 @@
                     icon.removeClass('fa-spin');
                     eventSource.close();
                 } else if (e.data.includes('CONFLICT:')) {
-                    haveConflict(e.data.split('CONFLICT:')[1].split(','));
+                    // haveConflict(e.data.split('CONFLICT:')[1].split(','));
+                } else if (e.data.includes('NEED RESOLVE BRANCH')) {
+                    needResolveBranch(e.data.split('NEED RESOLVE BRANCH:')[1]);
                 } else {
                     $('#output').append(e.data + '<br>');
                 }
@@ -366,6 +377,42 @@
             for (var i = 0; i < files.length; i++) {
                 conflictFileListDom.append( `<div class="alert alert-danger">${files[i]}<i class="fas fa-pencil pull-right m-2" onclick="editFile('${files[i]}')"></i></div>`);
             }
+        }
+
+        function needResolveBranch(branch = '') {
+            $('#conflict-block').removeClass('invisible');
+            var conflictFileListDom = $('#conflict-files');
+            conflictFileListDom.html( `<div class="alert alert-primary d-flex align-items-center" role="alert">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-exclamation-triangle-fill flex-shrink-0 me-2" viewBox="0 0 16 16" role="img" aria-label="Warning:">
+                    <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+                </svg>
+                <div>
+                    Have conflict. Please merge branch ${branch} on your local repository. Then push to remote repository. Then click merge again.
+                </div>
+            </div>`);
+        }
+
+        function branch_confirm(ele) {
+            var issue = ele.find('input[name="issues[]"]').val();
+            if (confirmList.includes(issue)) {
+                confirmList = confirmList.filter(item => item !== issue);
+                ele.find('.confirm-issue').removeClass('btn-success').addClass('btn-warning');
+            } else {
+                confirmList.push(issue);
+                ele.find('.confirm-issue').removeClass('btn-warning').addClass('btn-success');
+            }
+
+            saveList();
+        }
+
+        function branch_delete(ele) {
+            var issue = ele.find('input[name="issues[]"]').val();
+            ele.remove();
+            if (confirmList.includes(issue)) {
+                confirmList = confirmList.filter(item => item !== issue);
+            }
+
+            saveList();
         }
 
         function editFile(fileName) {
