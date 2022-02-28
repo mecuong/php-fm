@@ -1,4 +1,4 @@
-name: VN Develop CakePHP Linter
+name: Test PHP
 
 on:
   push:
