@@ -2,7 +2,6 @@
 
 define('PASSWORD', '418ca664b9019356422d2eec129ef0de'); // use md5 password
 
-//{"lang":"","fm_root":"","timezone":"","date_format":"Y\/m\/d H:i","auth_pass":"d41d8cd98f00b204e9800998ecf8427e","error_reporting":1}
 /*-------------------------------------------------
 | PHP FILE MANAGER
 +--------------------------------------------------
