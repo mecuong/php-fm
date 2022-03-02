@@ -201,9 +201,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GIT FORM</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="//code.jquery.com/ui/1.13.1/themes/base/jquery-ui.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
         integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg=="
         crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+    <script src="https://code.jquery.com/ui/1.13.1/jquery-ui.js"></script>
+    <script src="https://microsoft.github.io/monaco-editor/node_modules/monaco-editor/min/vs/loader.js"></script>
 </head>
 
 <body>
@@ -267,11 +271,20 @@
             <pre id="output"></pre>
         </div>
     </div>
-    <script src="https://microsoft.github.io/monaco-editor/node_modules/monaco-editor/min/vs/loader.js"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"
-        integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
-    <script src="https://code.jquery.com/ui/1.13.0/jquery-ui.min.js"
-        integrity="sha256-hlKLmzaRlE8SCJC1Kw8zoUbU8BxA+8kR3gseuKfMjxA=" crossorigin="anonymous"></script>
+    <style>
+        .input-group-prepend:hover {
+            cursor: grab;
+        }
+        .ui-sortable-placeholder {
+            visibility: visible !important;
+            background-color: #f9f9f9;
+            border: 1px dashed #ccc;
+            min-height: 38px;
+            margin-right: 0;
+            margin-left: 0;
+            border-radius: .25rem;
+        }
+    </style>
     <script>
         var dataJSON = <?= $dataJSON ?> ?? {} ;
         var issues = dataJSON.issues || [];
@@ -335,6 +348,22 @@
                 after.after(content);
             } else {
                 listForm.append(content);
+            }
+
+            if (typeof $.fn.sortable === 'function') {
+                try {
+                    listForm.sortable("destroy");
+                } catch (err) {
+                    // console.log(err);
+                }
+
+                listForm.sortable({
+                    handle: '.input-group-prepend',
+                    axis: 'y',
+                    update: function (event, ui) {
+                        saveList();
+                    }
+                });
             }
         }
 
@@ -419,6 +448,10 @@
         }
 
         function branch_delete(ele) {
+            if (!confirm('Are you sure?')) {
+                return;
+            }
+
             var issue = ele.find('input[name="issues[]"]').val();
             ele.remove();
             if (confirmList.includes(issue)) {
