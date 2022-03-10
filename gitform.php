@@ -65,6 +65,7 @@
 
         $data = json_decode($dataJSON, true);
         $issues = $data['issues'] ?? [];
+        $ignoredList = $data['ignoredList'] ?? [];
         array_unshift($issues, CONFIG_BRANCH);
         $output = '';
 
@@ -95,6 +96,11 @@
         // First step Merge all branches to this base
         foreach ($issues as $branch) {
             if ($branch) {
+                if (in_array($branch, $ignoredList)) {
+                    sendMsg("Branch {$branch} ignored by setting");
+                    continue;
+                }
+
                 $result = execCommandWithRoot("git merge --no-commit origin/{$branch}");
                 if (strpos(join(' ', $result), 'stopped before committing as requested')) {
                     execCommandWithRoot("git commit -m \"Merge to {$branch}\"");
@@ -284,11 +290,16 @@
             margin-left: 0;
             border-radius: .25rem;
         }
+        .btn-list button {
+            width: 40px;
+        }
     </style>
     <script>
-        var dataJSON = <?= $dataJSON ?> ?? {} ;
+        var dataJSON = <?= $dataJSON ?> || {} ;
         var issues = dataJSON.issues || [];
-        var confirmList = dataJSON.confirmList ?? [];
+        var confirmList = dataJSON.confirmList || [];
+        var ignoredList = dataJSON.ignoredList || [];
+
         require.config({
             paths: {
                 'vs': 'https://unpkg.com/monaco-editor@latest/min/vs'
@@ -315,18 +326,15 @@
         });
 
         for (var i = 0; i < issues.length; i++) {
-            if (confirmList.includes(issues[i])) {
-                add(issues[i], null, true);
-            } else {
-                add(issues[i]);
-            }
+            console.log(ignoredList, issues[i])
+            add(issues[i], null, confirmList.includes(issues[i]), ignoredList.includes(issues[i]));
         }
 
         if (!issues.length) {
             add('');
         }
 
-        function add(value = '', after = null, confirmed = false) {
+        function add(value = '', after = null, confirmed = false, ignored = false) {
             var listForm = $('#list-issue');
             var content = `<div class="form-group row">
                     <div class="col-12">
@@ -335,11 +343,13 @@
                                 <div class="input-group-text"><i class="fa">#</i></div>
                             </div>
                             <input id="text" name="issues[]" type="text" value="${value}" class="form-control">
-                            <div class="btn-group input-group-append" role="group" aria-label="Basic example">
+                            <div class="btn-list btn-group input-group-append" role="group">
                                 <button type="button" onclick="branch_delete($(this).parents('.form-group'));" class="btn btn-danger"><i class="fas fa-trash"></i></button>
                                 <button type="button" onclick="add('', $(this).parents('.form-group'))" class="btn btn-primary"><i class="fas fa-plus"></i></button>
                                 ${ confirmed ? `<button type="button" onclick="branch_confirm($(this).parents('.form-group'))" class="confirm-issue btn btn-success"><i class="fas fa-check"></i></button>` :
                                 `<button type="button" onclick="branch_confirm($(this).parents('.form-group'))" class="confirm-issue btn btn-warning"><i class="fas fa-check"></i></button>` }
+                                ${ignored ? `<button type="button" onclick="branch_ignored($(this).parents('.form-group'))" class="ignored-issue btn btn-default"><i class="fas fa-bookmark"></i></button>` : 
+                                `<button type="button" onclick="branch_ignored($(this).parents('.form-group'))" class="ignored-issue btn btn-default"><i class="fas fa-ban"></i></button>`}
                             </div>
                         </div>
                     </div>
@@ -378,8 +388,9 @@
                 method: 'POST',
                 body: JSON.stringify({
                     issues: issues,
-                    command:  window.commandEditor.getValue(),
-                    confirmList: confirmList
+                    command:  window.commandEditor?.getValue() || '',
+                    confirmList,
+                    ignoredList,
                 }),
                 headers: {
                     'Content-Type': 'application/json'
@@ -442,6 +453,20 @@
             } else {
                 confirmList.push(issue);
                 ele.find('.confirm-issue').removeClass('btn-warning').addClass('btn-success');
+            }
+
+            saveList();
+        }
+
+        function branch_ignored(ele) {
+            var issue = ele.find('input[name="issues[]"]').val();
+            ele.find('.ignored-issue i').removeAttr('class').attr('class', 'fas');
+            if (ignoredList.includes(issue)) {
+                ignoredList = ignoredList.filter(item => item !== issue);
+                ele.find('.ignored-issue i').addClass('fa-ban');
+            } else {
+                ignoredList.push(issue);
+                ele.find('.ignored-issue i').addClass('fa-bookmark');
             }
 
             saveList();
