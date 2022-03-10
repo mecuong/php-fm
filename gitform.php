@@ -405,6 +405,7 @@
             var button = $(event.target);
             var icon = button.find('i');
             icon.addClass('fa-spin');
+            $('#conflict-files').html('');
             $('#output').text('Running ... \n');
             // Use server sent event
             var eventSource = new EventSource('?merge=1');
